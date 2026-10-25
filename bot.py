@@ -34,7 +34,7 @@ def enviar_notificacao_pushover(titulo, mensagem):
         "user": PUSHOVER_USER_KEY,
         "title": titulo,
         "message": mensagem,
-        "sound": "pushover"  # Toca o som padrão do app (Kiwify)
+        "sound": "pushover"  # Usa o som padrão/customizado configurado no seu app (Kiwify)
     }
     try:
         response = requests.post(url, data=data)
@@ -108,9 +108,6 @@ def loop_do_bot():
 if __name__ == "__main__":
     # 1. Inicia o servidor web em segundo plano para manter o Render ligado
     threading.Thread(target=run_flask, daemon=True).start()
-    
-    # DISPARO DE TESTE (Para ouvir o som da Kiwify no telemóvel):
-    enviar_notificacao_pushover("🎉 Venda Shopee Registrada!", "Pedido #2026TESTE01\nComissão: R$ 18,50")
     
     # 2. Inicia a verificação contínua das vendas
     loop_do_bot()
