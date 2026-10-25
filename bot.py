@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot Shopee ativo e a monitorizar vendas 24/7!"
+    return "Bot Shopee ativo e a monitorar vendas 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -92,7 +92,7 @@ def verificar_vendas_shopee():
                 else:
                     print("Nenhuma venda nova nesta checagem.")
             else:
-                print("Nenhum pedido recente retornado.")
+                print("Nenum pedido recente retornado.")
         else:
             print(f"Erro na resposta da Shopee: {response.status_code} - {response.text}")
             
@@ -102,8 +102,8 @@ def verificar_vendas_shopee():
 def loop_do_bot():
     while True:
         verificar_vendas_shopee()
-        # Executa a verificação a cada 15 minutos (900 segundos)
-        time.sleep(900)
+        # Executa a verificação a cada 2 minutos (120 segundos)
+        time.sleep(120)
 
 if __name__ == "__main__":
     # 1. Inicia o servidor web em segundo plano para manter o Render ligado
