@@ -109,5 +109,8 @@ if __name__ == "__main__":
     # 1. Inicia o servidor web em segundo plano para manter o Render ligado
     threading.Thread(target=run_flask, daemon=True).start()
     
+    # TESTE INICIAL: Dispara uma notificação assim que o bot arrancar para validar o app
+    enviar_notificacao_pushover("🎉 Teste Shopee!", "Pedido #TESTE123\nComissão: R$ 15.50")
+    
     # 2. Inicia a verificação contínua das vendas
     loop_do_bot()
