@@ -34,7 +34,7 @@ def enviar_notificacao_pushover(titulo, mensagem):
         "user": PUSHOVER_USER_KEY,
         "title": titulo,
         "message": mensagem,
-        "sound": "cashregister"  # Som de caixa registadora
+        "sound": "pushover"  # Toca o som padrão do app (Kiwify)
     }
     try:
         response = requests.post(url, data=data)
@@ -92,7 +92,7 @@ def verificar_vendas_shopee():
                 else:
                     print("Nenhuma venda nova nesta checagem.")
             else:
-                print("Nenum pedido recente retornado.")
+                print("Nenhum pedido recente retornado.")
         else:
             print(f"Erro na resposta da Shopee: {response.status_code} - {response.text}")
             
@@ -108,6 +108,9 @@ def loop_do_bot():
 if __name__ == "__main__":
     # 1. Inicia o servidor web em segundo plano para manter o Render ligado
     threading.Thread(target=run_flask, daemon=True).start()
+    
+    # DISPARO DE TESTE (Para ouvir o som da Kiwify no telemóvel):
+    enviar_notificacao_pushover("🎉 Venda Shopee Registrada!", "Pedido #2026TESTE01\nComissão: R$ 18,50")
     
     # 2. Inicia a verificação contínua das vendas
     loop_do_bot()
