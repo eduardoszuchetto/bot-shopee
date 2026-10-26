@@ -18,10 +18,9 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- CREDENCIAIS OFICIAIS DA TUA CONTA ---
+# --- CREDENCIAIS ---
 SHOPEE_APP_ID = "18391400464"
-# COLA A TUA NOVA SECRET KEY ENTRE AS ASPAS ABAIXO:
-SHOPEE_SECRET = "COLE_AQUI_A_NOVA_SECRET_KEY"
+SHOPEE_SECRET = "5H4XMWIX4XVXL2Z6ZM6JD5V3YTBDMI7A"
 
 PUSHOVER_USER_KEY = "uvj912o52idhqyaf9in6frcjohu4bn"
 PUSHOVER_API_TOKEN = "amb9sabvfof81xe5skf3yjvjswdr9a"
@@ -78,7 +77,6 @@ def verificar_vendas_shopee():
     payload = {"query": query}
     payload_json = json.dumps(payload, separators=(',', ':'))
     
-    # Assinatura oficial Open API V2 GraphQL: SHA256(AppId + Timestamp + Payload + Secret)
     base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}{SHOPEE_SECRET}"
     signature = hashlib.sha256(base_string.encode('utf-8')).hexdigest()
     
@@ -113,4 +111,17 @@ def verificar_vendas_shopee():
             print("[SHOPEE] Nenhuma venda nova retornada nesta checagem.", flush=True)
             
     except Exception as e:
-        print(f"[SHOPEE ERRO/EXCEÇÃO]: {e}", flush=
+        print(f"[SHOPEE ERRO/EXCEÇÃO]: {e}", flush=True)
+
+def loop_do_bot():
+    time.sleep(3)
+    while True:
+        try:
+            verificar_vendas_shopee()
+        except Exception as err:
+            print(f"[LOOP ERRO]: {err}", flush=True)
+        time.sleep(120)
+
+if __name__ == "__main__":
+    threading.Thread(target=loop_do_bot, daemon=True).start()
+    run_flask()
