@@ -7,7 +7,7 @@ import requests
 import threading
 from flask import Flask
 
-# --- SERVIDOR WEB (Abre a porta 10000 exigida pelo Render Free) ---
+# --- SERVIDOR WEB ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -55,29 +55,12 @@ def verificar_vendas_shopee():
     sete_dias_atras = agora - (7 * 24 * 60 * 60)
     timestamp = agora
     
-    query = f"""
-    query {{
-      conversionReport(page: 1, limit: 20, purchaseTimeStart: {sete_dias_atras}, purchaseTimeEnd: {agora}) {{
-        nodes {{
-          purchaseTime
-          completeTime
-          orders {{
-            orderId
-            items {{
-              itemId
-              itemPrice
-              commissionRate
-            }}
-          }}
-        }}
-      }}
-    }}
-    """
+    # Query GraphQL simplificada em linha única para evitar incompatibilidade na assinatura
+    query_str = f"query{{conversionReport(page:1,limit:20,purchaseTimeStart:{sete_dias_atras},purchaseTimeEnd:{agora}){{nodes{{orders{{orderId}}}}}}}}"
     
-    payload = {"query": query}
+    payload = {"query": query_str}
     payload_json = json.dumps(payload, separators=(',', ':'))
     
-    # Assinatura HMAC-SHA256 padronizada para GraphQL V2 da Shopee
     base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
     signature = hmac.new(
         SHOPEE_SECRET.encode('utf-8'),
