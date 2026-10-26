@@ -77,8 +77,13 @@ def verificar_vendas_shopee():
     payload = {"query": query}
     payload_json = json.dumps(payload, separators=(',', ':'))
     
-    base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}{SHOPEE_SECRET}"
-    signature = hashlib.sha256(base_string.encode('utf-8')).hexdigest()
+    # Assinatura HMAC-SHA256 padronizada para GraphQL V2 da Shopee
+    base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
+    signature = hmac.new(
+        SHOPEE_SECRET.encode('utf-8'),
+        base_string.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
     
     headers = {
         "Content-Type": "application/json",
