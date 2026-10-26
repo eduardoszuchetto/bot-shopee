@@ -55,7 +55,7 @@ def verificar_vendas_shopee():
     timestamp = agora
     
     payload = {
-        "page_size": 10,
+        "page_size": 20,
         "page": 1,
         "purchase_time_start": sete_dias_atras,
         "purchase_time_end": agora
@@ -77,34 +77,33 @@ def verificar_vendas_shopee():
     
     try:
         print("\n--- CONSULTANDO API SHOPEE ---")
-        response = requests.post(endpoint, data=payload_json, headers=headers)
+        # Timeout de 15 segundos adicionado para evitar travamento contínuo
+        response = requests.post(endpoint, data=payload_json, headers=headers, timeout=15)
         
-        if response.status_code == 200:
-            dados = response.json()
-            print("RESPOSTA COMPLETA SHOPEE:", dados)
+        print(f"[SHOPEE STATUS CODE] {response.status_code}")
+        dados = response.json()
+        print("RESPOSTA COMPLETA SHOPEE:", json.dumps(dados, indent=2))
+        
+        orders = dados.get("data", {}).get("nodes", [])
+        if orders:
+            primeiro_pedido = orders[0]
+            order_id = primeiro_pedido.get("order_id")
+            valor = primeiro_pedido.get("total_commission", "0.00")
             
-            orders = dados.get("data", {}).get("nodes", [])
-            if orders:
-                primeiro_pedido = orders[0]
-                order_id = primeiro_pedido.get("order_id")
-                valor = primeiro_pedido.get("total_commission", "0.00")
-                
-                if order_id and order_id != ultimo_order_id:
-                    print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}")
-                    enviar_notificacao_pushover(
-                        "🎉 Nova Venda Shopee!",
-                        f"Pedido #{order_id}\nComissão: R$ {valor}"
-                    )
-                    ultimo_order_id = order_id
-                else:
-                    print("[SHOPEE] Nenhuma venda nova nesta checagem.")
+            if order_id and order_id != ultimo_order_id:
+                print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}")
+                enviar_notificacao_pushover(
+                    "🎉 Nova Venda Shopee!",
+                    f"Pedido #{order_id}\nComissão: R$ {valor}"
+                )
+                ultimo_order_id = order_id
             else:
-                print("[SHOPEE] Nenhum pedido retornado nos últimos 7 dias.")
+                print("[SHOPEE] Nenhuma venda nova nesta checagem.")
         else:
-            print(f"[SHOPEE ERRO] Status {response.status_code}: {response.text}")
+            print("[SHOPEE] Nenhum pedido retornado nos últimos 7 dias.")
             
     except Exception as e:
-        print(f"[SHOPEE EXCEÇÃO] {e}")
+        print(f"[SHOPEE ERRO/EXCEÇÃO] {e}")
 
 def loop_do_bot():
     while True:
