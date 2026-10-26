@@ -56,50 +56,42 @@ def verificar_vendas_shopee():
     sete_dias_atras = agora - (7 * 24 * 60 * 60)
     timestamp = agora
     
-    graphql_query = f"""
-    query {{
-      orderList(page: 1, limit: 20, purchaseTimeStart: {sete_dias_atras}, purchaseTimeEnd: {agora}) {{
-        nodes {{
-          orderId
-          commissionRate
-        }}
-      }}
-    }}
-    """
-    
-    payload = {"query": graphql_query}
-    payload_json = json.dumps(payload, separators=(',', ':'))
-    
-    base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
-    
-    signature = hmac.new(
-        SHOPEE_SECRET.encode('utf-8'),
-        base_string.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
+    # Assinatura HMAC no padrão oficial da Open API da Shopee: AppId + Timestamp + Secret
+    base_string = f"{SHOPEE_APP_ID}{timestamp}{SHOPEE_SECRET}"
+    signature = hashlib.sha256(base_string.encode('utf-8')).hexdigest()
     
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"SHA256 credential={SHOPEE_APP_ID}, timestamp={timestamp}, signature={signature}"
     }
     
+    payload = {
+        "page_size": 20,
+        "page": 1,
+        "purchase_time_start": sete_dias_atras,
+        "purchase_time_end": agora
+    }
+    
     try:
-        response = requests.post(endpoint, data=payload_json, headers=headers, timeout=15)
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=15)
         print(f"[SHOPEE STATUS CODE] {response.status_code}", flush=True)
         
         dados = response.json()
         print(f"[SHOPEE RESPOSTA BRUTA]: {dados}", flush=True)
         
-        orders = (
-            dados.get("data", {}).get("orderList", {}).get("nodes", []) or
-            dados.get("data", {}).get("nodes", []) or []
-        )
-        
+        # Extração flexível da lista de pedidos
+        data_obj = dados.get("data") or {}
+        orders = []
+        if isinstance(data_obj, dict):
+            orders = data_obj.get("nodes") or data_obj.get("order_list") or []
+        elif isinstance(data_obj, list):
+            orders = data_obj
+            
         if orders:
             novas_vendas = 0
-            for pedido in reversed(orders):  # Processa do mais antigo para o mais recente
-                order_id = pedido.get("orderId") or pedido.get("order_id")
-                valor = pedido.get("commissionRate") or pedido.get("total_commission", "0.00")
+            for pedido in reversed(orders):
+                order_id = pedido.get("order_id") or pedido.get("orderId")
+                valor = pedido.get("total_commission") or pedido.get("commissionRate") or "0.00"
                 
                 if order_id and order_id not in pedidos_processados:
                     print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}", flush=True)
