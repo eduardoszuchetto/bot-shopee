@@ -48,32 +48,23 @@ def enviar_notificacao_pushover(titulo, mensagem):
 def verificar_vendas_shopee():
     global ultimo_order_id
     
+    print("\n[SHOPEE] Iniciando verificação de vendas...")
     endpoint = "https://open-api.affiliate.shopee.com.br/open_api/v2/order/get_order_list"
     
     agora = int(time.time())
     sete_dias_atras = agora - (7 * 24 * 60 * 60)
     timestamp = agora
     
-    # Query GraphQL oficial exigida pela API V2 de Afiliados
-    query = """
-    query {
-      orderList(page: 1, limit: 10, purchaseTimeStart: %d, purchaseTimeEnd: %d) {
-        nodes {
-          orderId
-          commissionRate
-          items {
-            itemName
-            itemPrice
-          }
-        }
-      }
+    payload = {
+        "page_size": 10,
+        "page": 1,
+        "purchase_time_start": sete_dias_atras,
+        "purchase_time_end": agora
     }
-    """ % (sete_dias_atras, agora)
-
-    payload = {"query": query}
-    payload_json = json.dumps(payload, separators=(',', ':'))
     
+    payload_json = json.dumps(payload, separators=(',', ':'))
     base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
+    
     signature = hmac.new(
         SHOPEE_SECRET.encode('utf-8'),
         base_string.encode('utf-8'),
@@ -86,49 +77,54 @@ def verificar_vendas_shopee():
     }
     
     try:
-        print("\n[SHOPEE] Consultando API...")
-        response = requests.post(endpoint, data=payload_json, headers=headers, timeout=10)
-        
+        response = requests.post(endpoint, data=payload_json, headers=headers, timeout=15)
         print(f"[SHOPEE STATUS CODE] {response.status_code}")
+        
         dados = response.json()
-        print("[SHOPEE RESPOSTA]:", json.dumps(dados))
+        print(f"[SHOPEE RESPOSTA BRUTA]: {dados}")
         
-        # Leitura dos nós retornados via GraphQL ou REST fallback
-        orders = (
-            dados.get("data", {}).get("orderList", {}).get("nodes", []) or 
-            dados.get("data", {}).get("nodes", [])
-        )
-        
+        # Tenta capturar a lista de ordens independente da estrutura da chave
+        data_obj = dados.get("data") or {}
+        orders = []
+        if isinstance(data_obj, dict):
+            orders = data_obj.get("nodes") or data_obj.get("order_list") or []
+        elif isinstance(data_obj, list):
+            orders = data_obj
+            
         if orders:
             primeiro_pedido = orders[0]
-            order_id = primeiro_pedido.get("orderId") or primeiro_pedido.get("order_id")
-            valor = primeiro_pedido.get("commissionRate") or primeiro_pedido.get("total_commission", "0.00")
+            order_id = primeiro_pedido.get("order_id") or primeiro_pedido.get("orderId")
+            valor = primeiro_pedido.get("total_commission") or primeiro_pedido.get("commissionRate") or "0.00"
+            
+            print(f"[SHOPEE] Encontrados {len(orders)} pedidos nos últimos 7 dias. Último pedido: #{order_id}")
             
             if order_id and order_id != ultimo_order_id:
                 print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}")
                 enviar_notificacao_pushover(
                     "🎉 Nova Venda Shopee!",
-                    f"Pedido #{order_id}\nComissão/Taxa: {valor}"
+                    f"Pedido #{order_id}\nComissão: R$ {valor}"
                 )
                 ultimo_order_id = order_id
             else:
                 print("[SHOPEE] Nenhuma venda nova nesta checagem.")
         else:
-            print("[SHOPEE] Nenhum pedido retornado nos últimos 7 dias.")
+            print("[SHOPEE] Nenhum pedido retornado pela API nos últimos 7 dias.")
             
     except Exception as e:
-        print(f"[SHOPEE ERRO/EXCEÇÃO] {e}")
+        print(f"[SHOPEE ERRO/EXCEÇÃO]: {e}")
 
 def loop_do_bot():
-    # Aguarda 5 segundos para garantir que o Flask iniciou na porta 10000
-    time.sleep(5)
+    time.sleep(3)
     while True:
-        verificar_vendas_shopee()
+        try:
+            verificar_vendas_shopee()
+        except Exception as err:
+            print(f"[LOOP ERRO]: {err}")
         time.sleep(120)
 
 if __name__ == "__main__":
-    # Inicia o loop de monitoramento da Shopee em uma thread dedicada paralela
+    # Roda o monitoramento em thread secundária
     threading.Thread(target=loop_do_bot, daemon=True).start()
     
-    # Executa o servidor Flask no processo principal
+    # Roda o Flask no processo principal
     run_flask()
