@@ -34,7 +34,7 @@ def enviar_notificacao_pushover(titulo, mensagem):
         "user": PUSHOVER_USER_KEY,
         "title": titulo,
         "message": mensagem,
-        "sound": "pushover"  # Usa o som padrão/customizado configurado no seu app (Kiwify)
+        "sound": "pushover"  # Usa o som personalizado (Kiwify) configurado na app
     }
     try:
         response = requests.post(url, data=data)
@@ -75,6 +75,9 @@ def verificar_vendas_shopee():
         
         if response.status_code == 200:
             dados = response.json()
+            # IMPRIME A RESPOSTA BRUTA COMPLETA DA SHOPEE NOS LOGS
+            print("RESPOSTA COMPLETA DA SHOPEE:", dados)
+            
             orders = dados.get("data", {}).get("nodes", [])
             
             if orders:
