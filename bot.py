@@ -39,16 +39,16 @@ def enviar_notificacao_pushover(titulo, mensagem):
     try:
         response = requests.post(url, data=data, timeout=10)
         if response.status_code == 200:
-            print("[PUSHOVER] Notificação enviada com sucesso!")
+            print("[PUSHOVER] Notificação enviada com sucesso!", flush=True)
         else:
-            print(f"[PUSHOVER ERRO] {response.status_code} - {response.text}")
+            print(f"[PUSHOVER ERRO] {response.status_code} - {response.text}", flush=True)
     except Exception as e:
-        print(f"[PUSHOVER EXCEÇÃO] {e}")
+        print(f"[PUSHOVER EXCEÇÃO] {e}", flush=True)
 
 def verificar_vendas_shopee():
     global ultimo_order_id
     
-    print("\n[SHOPEE] Executando checagem de vendas...")
+    print("\n[SHOPEE] Executando checagem de vendas...", flush=True)
     endpoint = "https://open-api.affiliate.shopee.com.br/open_api/v2/order/get_order_list"
     
     agora = int(time.time())
@@ -78,10 +78,10 @@ def verificar_vendas_shopee():
     
     try:
         response = requests.post(endpoint, data=payload_json, headers=headers, timeout=15)
-        print(f"[SHOPEE STATUS CODE] {response.status_code}")
+        print(f"[SHOPEE STATUS CODE] {response.status_code}", flush=True)
         
         dados = response.json()
-        print(f"[SHOPEE RESPOSTA BRUTA]: {dados}")
+        print(f"[SHOPEE RESPOSTA BRUTA]: {dados}", flush=True)
         
         data_obj = dados.get("data") or {}
         orders = []
@@ -95,22 +95,22 @@ def verificar_vendas_shopee():
             order_id = primeiro_pedido.get("order_id") or primeiro_pedido.get("orderId")
             valor = primeiro_pedido.get("total_commission") or primeiro_pedido.get("commissionRate") or "0.00"
             
-            print(f"[SHOPEE] Encontrados {len(orders)} pedidos retornado(s). Último pedido: #{order_id}")
+            print(f"[SHOPEE] Encontrados {len(orders)} pedidos retornado(s). Último pedido: #{order_id}", flush=True)
             
             if order_id and order_id != ultimo_order_id:
-                print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}")
+                print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}", flush=True)
                 enviar_notificacao_pushover(
                     "🎉 Nova Venda Shopee!",
                     f"Pedido #{order_id}\nComissão: R$ {valor}"
                 )
                 ultimo_order_id = order_id
             else:
-                print("[SHOPEE] Nenhuma venda nova nesta checagem.")
+                print("[SHOPEE] Nenhuma venda nova nesta checagem.", flush=True)
         else:
-            print("[SHOPEE] Nenhum pedido retornado pela API no momento.")
+            print("[SHOPEE] Nenhum pedido retornado pela API no momento.", flush=True)
             
     except Exception as e:
-        print(f"[SHOPEE ERRO/EXCEÇÃO]: {e}")
+        print(f"[SHOPEE ERRO/EXCEÇÃO]: {e}", flush=True)
 
 def loop_do_bot():
     time.sleep(3)
@@ -118,7 +118,7 @@ def loop_do_bot():
         try:
             verificar_vendas_shopee()
         except Exception as err:
-            print(f"[LOOP ERRO]: {err}")
+            print(f"[LOOP ERRO]: {err}", flush=True)
         time.sleep(120)
 
 if __name__ == "__main__":
