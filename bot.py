@@ -2,6 +2,7 @@ import os
 import time
 import hmac
 import hashlib
+import json
 import requests
 import threading
 from flask import Flask
@@ -48,9 +49,21 @@ def verificar_vendas_shopee():
     global ultimo_order_id
     
     endpoint = "https://open-api.affiliate.shopee.com.br/open_api/v2/order/get_order_list"
-    timestamp = int(time.time())
     
-    base_string = f"{SHOPEE_APP_ID}{timestamp}"
+    agora = int(time.time())
+    sete_dias_atras = agora - (7 * 24 * 60 * 60)
+    timestamp = agora
+    
+    payload = {
+        "page_size": 10,
+        "page": 1,
+        "purchase_time_start": sete_dias_atras,
+        "purchase_time_end": agora
+    }
+    
+    payload_json = json.dumps(payload, separators=(',', ':'))
+    base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
+    
     signature = hmac.new(
         SHOPEE_SECRET.encode('utf-8'),
         base_string.encode('utf-8'),
@@ -64,8 +77,7 @@ def verificar_vendas_shopee():
     
     try:
         print("\n--- CONSULTANDO API SHOPEE ---")
-        payload = {"page_size": 10, "page": 1}
-        response = requests.post(endpoint, json=payload, headers=headers)
+        response = requests.post(endpoint, data=payload_json, headers=headers)
         
         if response.status_code == 200:
             dados = response.json()
@@ -87,7 +99,7 @@ def verificar_vendas_shopee():
                 else:
                     print("[SHOPEE] Nenhuma venda nova nesta checagem.")
             else:
-                print("[SHOPEE] Nenhum pedido retornado.")
+                print("[SHOPEE] Nenhum pedido retornado nos últimos 7 dias.")
         else:
             print(f"[SHOPEE ERRO] Status {response.status_code}: {response.text}")
             
@@ -100,8 +112,5 @@ def loop_do_bot():
         time.sleep(120)
 
 if __name__ == "__main__":
-    # 1. Inicia o Flask em background para liberar a porta do Render
     threading.Thread(target=run_flask, daemon=True).start()
-    
-    # 2. Inicia o loop contínuo de verificação
     loop_do_bot()
