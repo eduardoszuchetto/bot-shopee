@@ -37,7 +37,7 @@ def enviar_notificacao_pushover(titulo, mensagem):
         "sound": "pushover"
     }
     try:
-        response = requests.post(url, data=data)
+        response = requests.post(url, data=data, timeout=10)
         if response.status_code == 200:
             print("[PUSHOVER] Notificação enviada com sucesso!")
         else:
@@ -54,16 +54,26 @@ def verificar_vendas_shopee():
     sete_dias_atras = agora - (7 * 24 * 60 * 60)
     timestamp = agora
     
-    payload = {
-        "page_size": 20,
-        "page": 1,
-        "purchase_time_start": sete_dias_atras,
-        "purchase_time_end": agora
+    # Query GraphQL oficial exigida pela API V2 de Afiliados
+    query = """
+    query {
+      orderList(page: 1, limit: 10, purchaseTimeStart: %d, purchaseTimeEnd: %d) {
+        nodes {
+          orderId
+          commissionRate
+          items {
+            itemName
+            itemPrice
+          }
+        }
+      }
     }
-    
+    """ % (sete_dias_atras, agora)
+
+    payload = {"query": query}
     payload_json = json.dumps(payload, separators=(',', ':'))
-    base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
     
+    base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
     signature = hmac.new(
         SHOPEE_SECRET.encode('utf-8'),
         base_string.encode('utf-8'),
@@ -76,25 +86,29 @@ def verificar_vendas_shopee():
     }
     
     try:
-        print("\n--- CONSULTANDO API SHOPEE ---")
-        # Timeout de 15 segundos adicionado para evitar travamento contínuo
-        response = requests.post(endpoint, data=payload_json, headers=headers, timeout=15)
+        print("\n[SHOPEE] Consultando API...")
+        response = requests.post(endpoint, data=payload_json, headers=headers, timeout=10)
         
         print(f"[SHOPEE STATUS CODE] {response.status_code}")
         dados = response.json()
-        print("RESPOSTA COMPLETA SHOPEE:", json.dumps(dados, indent=2))
+        print("[SHOPEE RESPOSTA]:", json.dumps(dados))
         
-        orders = dados.get("data", {}).get("nodes", [])
+        # Leitura dos nós retornados via GraphQL ou REST fallback
+        orders = (
+            dados.get("data", {}).get("orderList", {}).get("nodes", []) or 
+            dados.get("data", {}).get("nodes", [])
+        )
+        
         if orders:
             primeiro_pedido = orders[0]
-            order_id = primeiro_pedido.get("order_id")
-            valor = primeiro_pedido.get("total_commission", "0.00")
+            order_id = primeiro_pedido.get("orderId") or primeiro_pedido.get("order_id")
+            valor = primeiro_pedido.get("commissionRate") or primeiro_pedido.get("total_commission", "0.00")
             
             if order_id and order_id != ultimo_order_id:
                 print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}")
                 enviar_notificacao_pushover(
                     "🎉 Nova Venda Shopee!",
-                    f"Pedido #{order_id}\nComissão: R$ {valor}"
+                    f"Pedido #{order_id}\nComissão/Taxa: {valor}"
                 )
                 ultimo_order_id = order_id
             else:
@@ -106,10 +120,15 @@ def verificar_vendas_shopee():
         print(f"[SHOPEE ERRO/EXCEÇÃO] {e}")
 
 def loop_do_bot():
+    # Aguarda 5 segundos para garantir que o Flask iniciou na porta 10000
+    time.sleep(5)
     while True:
         verificar_vendas_shopee()
         time.sleep(120)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask, daemon=True).start()
-    loop_do_bot()
+    # Inicia o loop de monitoramento da Shopee em uma thread dedicada paralela
+    threading.Thread(target=loop_do_bot, daemon=True).start()
+    
+    # Executa o servidor Flask no processo principal
+    run_flask()
