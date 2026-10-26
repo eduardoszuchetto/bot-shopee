@@ -7,7 +7,7 @@ import requests
 import threading
 from flask import Flask
 
-# --- SERVIDOR WEB ---
+# --- SERVIDOR WEB (Servidor de Keep-Alive para o Render) ---
 app = Flask(__name__)
 
 @app.route('/')
@@ -18,7 +18,7 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- CREDENCIAIS ---
+# --- CREDENCIAIS OFICIAIS ---
 SHOPEE_APP_ID = "18391400464"
 SHOPEE_SECRET = "5H4XMWIX4XVXL2Z6ZM6JD5V3YTBDMI7A"
 
@@ -55,18 +55,14 @@ def verificar_vendas_shopee():
     sete_dias_atras = agora - (7 * 24 * 60 * 60)
     timestamp = agora
     
-    # Query GraphQL simplificada em linha única para evitar incompatibilidade na assinatura
-    query_str = f"query{{conversionReport(page:1,limit:20,purchaseTimeStart:{sete_dias_atras},purchaseTimeEnd:{agora}){{nodes{{orders{{orderId}}}}}}}}"
-    
+    # 1. Query GraphQL minificada e válida
+    query_str = f"query{{conversionReport(page:1,limit:20,purchaseTimeStart:{sete_dias_atras},purchaseTimeEnd:{agora}){{nodes{{purchaseTime completeTime orders{{orderId items{{itemId itemPrice commissionRate}}}}}}}}}}"
     payload = {"query": query_str}
-    payload_json = json.dumps(payload, separators=(',', ':'))
     
-    base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
-    signature = hmac.new(
-        SHOPEE_SECRET.encode('utf-8'),
-        base_string.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
+    # 2. String base HMAC-SHA256 padronizada da Shopee Open API V2 GraphQL
+    # Padrão oficial: AppId + Timestamp + Secret
+    factor_string = f"{SHOPEE_APP_ID}{timestamp}{SHOPEE_SECRET}"
+    signature = hashlib.sha256(factor_string.encode('utf-8')).hexdigest()
     
     headers = {
         "Content-Type": "application/json",
@@ -74,12 +70,13 @@ def verificar_vendas_shopee():
     }
     
     try:
-        response = requests.post(endpoint, data=payload_json, headers=headers, timeout=15)
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=15)
         print(f"[SHOPEE STATUS CODE] {response.status_code}", flush=True)
         
         dados = response.json()
         print(f"[SHOPEE RESPOSTA BRUTA]: {dados}", flush=True)
         
+        # Trata os nós e ordens retornadas
         nodes = dados.get("data", {}).get("conversionReport", {}).get("nodes", []) or []
         
         novas_vendas = 0
