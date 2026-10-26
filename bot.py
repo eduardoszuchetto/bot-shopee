@@ -25,7 +25,8 @@ SHOPEE_SECRET = "7HXPKZGWFRZZIUCI2P3JTYXU4XF6RQ5I"
 PUSHOVER_USER_KEY = "uvj912o52idhqyaf9in6frcjohu4bn"
 PUSHOVER_API_TOKEN = "amb9sabvfof81xe5skf3yjvjswdr9a"
 
-ultimo_order_id = None
+# Conjunto em memória para registrar pedidos já notificados
+pedidos_processados = set()
 
 def enviar_notificacao_pushover(titulo, mensagem):
     url = "https://api.pushover.net/1/messages.json"
@@ -46,7 +47,7 @@ def enviar_notificacao_pushover(titulo, mensagem):
         print(f"[PUSHOVER EXCEÇÃO] {e}", flush=True)
 
 def verificar_vendas_shopee():
-    global ultimo_order_id
+    global pedidos_processados
     
     print("\n[SHOPEE] Executando checagem de vendas...", flush=True)
     endpoint = "https://open-api.affiliate.shopee.com.br/open_api/v2/order/get_order_list"
@@ -55,14 +56,20 @@ def verificar_vendas_shopee():
     sete_dias_atras = agora - (7 * 24 * 60 * 60)
     timestamp = agora
     
-    payload = {
-        "page_size": 10,
-        "page": 1,
-        "purchase_time_start": sete_dias_atras,
-        "purchase_time_end": agora
-    }
+    graphql_query = f"""
+    query {{
+      orderList(page: 1, limit: 20, purchaseTimeStart: {sete_dias_atras}, purchaseTimeEnd: {agora}) {{
+        nodes {{
+          orderId
+          commissionRate
+        }}
+      }}
+    }}
+    """
     
+    payload = {"query": graphql_query}
     payload_json = json.dumps(payload, separators=(',', ':'))
+    
     base_string = f"{SHOPEE_APP_ID}{timestamp}{payload_json}"
     
     signature = hmac.new(
@@ -83,28 +90,27 @@ def verificar_vendas_shopee():
         dados = response.json()
         print(f"[SHOPEE RESPOSTA BRUTA]: {dados}", flush=True)
         
-        data_obj = dados.get("data") or {}
-        orders = []
-        if isinstance(data_obj, dict):
-            orders = data_obj.get("nodes") or data_obj.get("order_list") or []
-        elif isinstance(data_obj, list):
-            orders = data_obj
-            
+        orders = (
+            dados.get("data", {}).get("orderList", {}).get("nodes", []) or
+            dados.get("data", {}).get("nodes", []) or []
+        )
+        
         if orders:
-            primeiro_pedido = orders[0]
-            order_id = primeiro_pedido.get("order_id") or primeiro_pedido.get("orderId")
-            valor = primeiro_pedido.get("total_commission") or primeiro_pedido.get("commissionRate") or "0.00"
+            novas_vendas = 0
+            for pedido in reversed(orders):  # Processa do mais antigo para o mais recente
+                order_id = pedido.get("orderId") or pedido.get("order_id")
+                valor = pedido.get("commissionRate") or pedido.get("total_commission", "0.00")
+                
+                if order_id and order_id not in pedidos_processados:
+                    print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}", flush=True)
+                    enviar_notificacao_pushover(
+                        "🎉 Nova Venda Shopee!",
+                        f"Pedido #{order_id}\nComissão: R$ {valor}"
+                    )
+                    pedidos_processados.add(order_id)
+                    novas_vendas += 1
             
-            print(f"[SHOPEE] Encontrados {len(orders)} pedidos retornado(s). Último pedido: #{order_id}", flush=True)
-            
-            if order_id and order_id != ultimo_order_id:
-                print(f"[NOVA VENDA DETECTADA] Pedido #{order_id}", flush=True)
-                enviar_notificacao_pushover(
-                    "🎉 Nova Venda Shopee!",
-                    f"Pedido #{order_id}\nComissão: R$ {valor}"
-                )
-                ultimo_order_id = order_id
-            else:
+            if novas_vendas == 0:
                 print("[SHOPEE] Nenhuma venda nova nesta checagem.", flush=True)
         else:
             print("[SHOPEE] Nenhum pedido retornado pela API no momento.", flush=True)
