@@ -3,6 +3,19 @@ import time
 import hmac
 import hashlib
 import requests
+import threading
+from flask import Flask
+
+# --- SERVIDOR WEB (Abre a porta 10000 exigida pelo Render Free) ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot Shopee Ativo 24/7!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
 # --- CREDENCIAIS ---
 SHOPEE_APP_ID = "18391400464"
@@ -50,13 +63,13 @@ def verificar_vendas_shopee():
     }
     
     try:
-        print("\n--- CONSULTANDO SHOPEE ---")
+        print("\n--- CONSULTANDO API SHOPEE ---")
         payload = {"page_size": 10, "page": 1}
         response = requests.post(endpoint, json=payload, headers=headers)
         
         if response.status_code == 200:
             dados = response.json()
-            print("RESPOSTA SHOPEE:", dados)
+            print("RESPOSTA COMPLETA SHOPEE:", dados)
             
             orders = dados.get("data", {}).get("nodes", [])
             if orders:
@@ -65,14 +78,14 @@ def verificar_vendas_shopee():
                 valor = primeiro_pedido.get("total_commission", "0.00")
                 
                 if order_id and order_id != ultimo_order_id:
-                    print(f"[NOVA VENDA] Pedido #{order_id}")
+                    print(f"[NOVA VENDA DETETADA] Pedido #{order_id}")
                     enviar_notificacao_pushover(
                         "🎉 Nova Venda Shopee!",
                         f"Pedido #{order_id}\nComissão: R$ {valor}"
                     )
                     ultimo_order_id = order_id
                 else:
-                    print("[SHOPEE] Sem vendas novas nesta checagem.")
+                    print("[SHOPEE] Nenhuma venda nova nesta checagem.")
             else:
                 print("[SHOPEE] Nenhum pedido retornado.")
         else:
@@ -81,8 +94,14 @@ def verificar_vendas_shopee():
     except Exception as e:
         print(f"[SHOPEE EXCEÇÃO] {e}")
 
-if __name__ == "__main__":
-    print(">>> BOT INICIADO COM SUCESSO <<<")
+def loop_do_bot():
     while True:
         verificar_vendas_shopee()
         time.sleep(120)
+
+if __name__ == "__main__":
+    # 1. Inicia o Flask em background para liberar a porta do Render
+    threading.Thread(target=run_flask, daemon=True).start()
+    
+    # 2. Inicia o loop contínuo de verificação da Shopee
+    loop_do_bot()
